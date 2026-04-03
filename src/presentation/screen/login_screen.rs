@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, collections::HashMap, env, process::Command};
 
 use crossterm::event::KeyCode;
 use ratatui::{
@@ -8,15 +8,17 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListState, Padding, Paragraph},
 };
+use reqwest::Url;
 
 use crate::{
-    common::{Context, State},
+    common::{Config, Context, State},
     presentation::screen::Screen,
 };
 
 struct LoginScreenState {
     pub title: String,
     pub selected_item: usize,
+    pub total_item: usize,
 }
 
 impl State for LoginScreenState {
@@ -30,6 +32,7 @@ impl Clone for LoginScreenState {
         Self {
             title: self.title.clone(),
             selected_item: self.selected_item.clone(),
+            total_item: self.total_item.clone(),
         }
     }
 }
@@ -39,10 +42,13 @@ pub fn login_screen() -> Screen {
 }
 
 fn render(context: &mut Context, frame: &mut Frame) {
+    let items = ["Login to Slack", "Modify configuration", "Exit"];
+
     // GENERATING STATE
     let default_state = LoginScreenState {
         title: "Lorem Ipsum".to_string(),
-        selected_item: 1,
+        selected_item: 0,
+        total_item: items.len(),
     };
 
     let state = match context.get_state::<LoginScreenState>() {
@@ -92,6 +98,8 @@ fn render(context: &mut Context, frame: &mut Frame) {
     let title = Line::from_iter([
         Span::from("Please select option below:").bold(),
         Span::from(" (Press 'q' to quit and arrow keys to navigate)"),
+        Span::from(&context.config.client_id),
+        Span::from(&context.config.client_secret),
     ])
     .centered();
     frame.render_widget(title, chunks[2]);
@@ -119,7 +127,7 @@ fn keymap(context: &mut Context) -> Option<bool> {
         let mut selected_item: Option<usize> = None;
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                if state.selected_item < 2 {
+                if state.selected_item < state.total_item - 1 {
                     selected_item = Some(state.selected_item + 1)
                 }
             }
@@ -130,6 +138,50 @@ fn keymap(context: &mut Context) -> Option<bool> {
             }
             KeyCode::Char('q') | KeyCode::Esc => return Some(true),
             KeyCode::Enter => match state.selected_item {
+                0 => {
+                    let base_url = "https://slack.com/oauth/v2/authorize";
+                    let redirect_uri = "https://localhost:7777";
+                    let scope: Vec<&str> = vec![];
+                    let user_scope: Vec<&str> = vec![
+                        "users:read",
+                        "usergroups:read",
+                        "channels:read",
+                        "channels:history",
+                        "groups:read",
+                        "groups:history",
+                        "mpim:read",
+                        "mpim:history",
+                        "im:read",
+                        "im:history",
+                        "chat:write",
+                    ];
+
+                    let mut auth_url = Url::parse(base_url).ok()?;
+                    let mut params: HashMap<String, String> = HashMap::new();
+
+                    params.insert("scope".to_string(), scope.join(","));
+                    params.insert("user_scope".to_string(), user_scope.join(","));
+                    params.insert("redirect_uri".to_string(), redirect_uri.to_string());
+                    params.insert("client_id".to_string(), context.config.client_id.clone());
+
+                    for (key, value) in params {
+                        auth_url
+                            .query_pairs_mut()
+                            .append_pair(key.as_str(), value.as_str());
+                    }
+
+                    opener::open(auth_url.to_string()).ok()?;
+                }
+                1 => {
+                    let config_path = Config::get_path();
+                    let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
+
+                    let mut child = Command::new(editor).arg(config_path).spawn().ok()?;
+
+                    child.wait().ok()?;
+                    context.refresh_config();
+                    return Some(false);
+                }
                 2 => return Some(true),
                 _ => {}
             },

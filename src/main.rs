@@ -1,7 +1,8 @@
 mod common;
 mod presentation;
+mod utils;
 
-use ratatui::{DefaultTerminal, Frame};
+use ratatui::DefaultTerminal;
 
 use crate::{common::Context, presentation::screen::login_screen};
 
@@ -19,8 +20,11 @@ fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
 
         let _ = terminal.draw(|frame| (screen.render)(&mut context, frame));
 
-        if let Some(true) = (screen.keymap)(&mut context) {
-            break Ok(());
+        if let Some(finished) = (screen.keymap)(&mut context) {
+            terminal.clear()?;
+            if finished {
+                break Ok(());
+            }
         }
     }
 }
