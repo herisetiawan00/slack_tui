@@ -9,6 +9,7 @@ use ratatui::{
     widgets::{Block, Borders, List, ListState, Padding, Paragraph},
 };
 use reqwest::Url;
+use tiny_http::{Response, Server};
 
 use crate::{
     common::{Config, Context, State},
@@ -98,8 +99,6 @@ fn render(context: &mut Context, frame: &mut Frame) {
     let title = Line::from_iter([
         Span::from("Please select option below:").bold(),
         Span::from(" (Press 'q' to quit and arrow keys to navigate)"),
-        Span::from(&context.config.client_id),
-        Span::from(&context.config.client_secret),
     ])
     .centered();
     frame.render_widget(title, chunks[2]);
@@ -171,6 +170,16 @@ fn keymap(context: &mut Context) -> Option<bool> {
                     }
 
                     opener::open(auth_url.to_string()).ok()?;
+
+                    let server = Server::http("127.0.0.1:7777").unwrap();
+
+                    for request in server.incoming_requests() {
+                        println!("{:?}", request.url());
+                        request
+                            .respond(Response::from_string("Success").with_status_code(200))
+                            .ok()?;
+                        break;
+                    }
                 }
                 1 => {
                     let config_path = Config::get_path();
