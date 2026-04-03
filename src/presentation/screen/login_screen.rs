@@ -97,8 +97,7 @@ fn render(context: &mut Context, frame: &mut Frame) {
     frame.render_widget(title, chunks[2]);
 
     // RENDERING LUST ITEM
-    let wrapper = Block::default()
-        .borders(Borders::ALL);
+    let wrapper = Block::default().borders(Borders::ALL);
 
     let items = ["Login to Slack", "Modify configuration", "Exit"];
 

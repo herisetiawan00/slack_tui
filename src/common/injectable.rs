@@ -17,7 +17,7 @@ impl Registry {
         return Self {
             registered: Vec::new(),
             types: HashSet::new(),
-        }
+        };
     }
 
     pub fn register<T: Injectable + 'static>(mut self, injectable: T) {
@@ -49,8 +49,8 @@ impl Registry {
             return None;
         }
 
-        self.registered.iter().find_map(|i| {
-            (**i).as_any().downcast_ref::<T>()
-        })
+        self.registered
+            .iter()
+            .find_map(|i| (**i).as_any().downcast_ref::<T>())
     }
 }

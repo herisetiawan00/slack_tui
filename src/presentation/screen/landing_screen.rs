@@ -1,5 +1,7 @@
 use ratatui::{
-    Frame, layout::{Constraint, Direction, HorizontalAlignment, Layout}, widgets::{Block, Borders}
+    Frame,
+    layout::{Constraint, Direction, HorizontalAlignment, Layout},
+    widgets::{Block, Borders},
 };
 
 use crate::{common::Context, presentation::screen::Screen};
