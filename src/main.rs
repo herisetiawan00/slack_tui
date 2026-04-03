@@ -1,4 +1,9 @@
+mod common;
+mod presentation;
+
 use ratatui::{DefaultTerminal, Frame};
+
+use crate::{common::Context, presentation::screen::login_screen};
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -7,14 +12,15 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
+    let mut context = Context::new();
+
     loop {
-        terminal.draw(render)?;
-        if crossterm::event::read()?.is_key_press() {
+        let screen = login_screen();
+
+        let _ = terminal.draw(|frame| (screen.render)(&mut context, frame));
+
+        if let Some(true) = (screen.keymap)(&mut context) {
             break Ok(());
         }
     }
-}
-
-fn render(frame: &mut Frame) {
-    frame.render_widget("hello world", frame.area());
 }
