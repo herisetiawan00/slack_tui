@@ -3,6 +3,8 @@ use std::{
     collections::HashSet,
 };
 
+use crate::common::Context;
+
 pub trait Injectable {
     fn as_any(&self) -> &dyn Any;
 }
@@ -20,7 +22,7 @@ impl Registry {
         };
     }
 
-    pub fn register<T: Injectable + 'static>(mut self, injectable: T) {
+    pub fn register<T: Injectable + 'static>(&mut self, injectable: T) {
         let type_id = TypeId::of::<T>();
 
         if self.types.contains(&type_id) {
@@ -52,5 +54,9 @@ impl Registry {
         self.registered
             .iter()
             .find_map(|i| (**i).as_any().downcast_ref::<T>())
+    }
+
+    pub fn of(context: &Context) -> &Self {
+        &context.registry
     }
 }

@@ -12,7 +12,8 @@ use reqwest::Url;
 use tiny_http::{Response, Server};
 
 use crate::{
-    common::{Config, Context, State},
+    common::{Config, Context, Registry, State},
+    data::datasources::{local::ConfigurationLocalDatasource, remote::SlackRemoteDatasource},
     presentation::screen::Screen,
 };
 
@@ -138,56 +139,18 @@ fn keymap(context: &mut Context) -> Option<bool> {
             KeyCode::Char('q') | KeyCode::Esc => return Some(true),
             KeyCode::Enter => match state.selected_item {
                 0 => {
-                    let base_url = "https://slack.com/oauth/v2/authorize";
-                    let redirect_uri = "https://localhost:7777";
-                    let scope: Vec<&str> = vec![];
-                    let user_scope: Vec<&str> = vec![
-                        "users:read",
-                        "usergroups:read",
-                        "channels:read",
-                        "channels:history",
-                        "groups:read",
-                        "groups:history",
-                        "mpim:read",
-                        "mpim:history",
-                        "im:read",
-                        "im:history",
-                        "chat:write",
-                    ];
-
-                    let mut auth_url = Url::parse(base_url).ok()?;
-                    let mut params: HashMap<String, String> = HashMap::new();
-
-                    params.insert("scope".to_string(), scope.join(","));
-                    params.insert("user_scope".to_string(), user_scope.join(","));
-                    params.insert("redirect_uri".to_string(), redirect_uri.to_string());
-                    params.insert("client_id".to_string(), context.config.client_id.clone());
-
-                    for (key, value) in params {
-                        auth_url
-                            .query_pairs_mut()
-                            .append_pair(key.as_str(), value.as_str());
-                    }
-
-                    opener::open(auth_url.to_string()).ok()?;
-
-                    let server = Server::http("127.0.0.1:7777").unwrap();
-
-                    for request in server.incoming_requests() {
-                        println!("{:?}", request.url());
-                        request
-                            .respond(Response::from_string("Success").with_status_code(200))
-                            .ok()?;
-                        break;
-                    }
+                    let slack_remote_datasource = Registry::of(context)
+                        .resolve::<SlackRemoteDatasource>()
+                        .expect("SlackRemoteDatasource not registered in registry");
+                    let code = slack_remote_datasource
+                        .oauth_authorize(&context.config.client_id, &context.config.redirect_url);
+                    println!("{:?}", code?)
                 }
                 1 => {
-                    let config_path = Config::get_path();
-                    let editor = env::var("EDITOR").unwrap_or_else(|_| "vim".to_string());
-
-                    let mut child = Command::new(editor).arg(config_path).spawn().ok()?;
-
-                    child.wait().ok()?;
+                    let configuration_local_datasource = Registry::of(context)
+                        .resolve::<ConfigurationLocalDatasource>()
+                        .expect("ConfigurationLocalDatasource not registered in registry");
+                    configuration_local_datasource.edit();
                     context.refresh_config();
                     return Some(false);
                 }

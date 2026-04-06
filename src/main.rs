@@ -1,10 +1,15 @@
 mod common;
+mod data;
 mod presentation;
 mod utils;
 
 use ratatui::DefaultTerminal;
 
-use crate::{common::Context, presentation::screen::login_screen};
+use crate::{
+    common::{Config, Context, Registry},
+    data::datasources::{local::ConfigurationLocalDatasource, remote::SlackRemoteDatasource},
+    presentation::screen::login_screen,
+};
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
@@ -13,7 +18,12 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
-    let mut context = Context::new();
+    let mut registry = Registry::new();
+
+    setup_registry(&mut registry);
+    let config = setup_config(&registry);
+
+    let mut context = Context::new(registry, config);
 
     loop {
         let screen = login_screen();
@@ -27,4 +37,15 @@ fn app(terminal: &mut DefaultTerminal) -> std::io::Result<()> {
             }
         }
     }
+}
+
+fn setup_registry(registry: &mut Registry) {
+    registry.register::<ConfigurationLocalDatasource>(ConfigurationLocalDatasource {});
+    registry.register::<SlackRemoteDatasource>(SlackRemoteDatasource {});
+}
+
+fn setup_config(registry: &Registry) -> Config {
+    let datasource = registry.resolve::<ConfigurationLocalDatasource>().expect("ConfigurationLocalDatasource not registered in registry");
+
+    datasource.get()
 }

@@ -1,4 +1,7 @@
-use crate::common::{Config, State, injectable::Registry};
+use crate::{
+    common::{Config, State, injectable::Registry},
+    data::datasources::local::ConfigurationLocalDatasource,
+};
 pub struct Context {
     state: Option<Box<dyn State>>,
     pub registry: Registry,
@@ -6,18 +9,18 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new() -> Self {
+    pub fn new(registry: Registry, config: Config) -> Self {
         Self {
             state: None,
-            registry: Registry::new(),
-            config: Config::get(),
+            registry,
+            config,
         }
     }
 
-    pub fn refresh_config(&mut self) {
-        self.config = Config::get();
+    pub fn refresh_config(&mut self) -> Option<()> {
+        self.config = self.registry.resolve::<ConfigurationLocalDatasource>()?.get();
+        return Some(());
     }
-
 
     pub fn set_state<T: State + 'static>(&mut self, state: T) {
         self.state = Some(Box::new(state));
