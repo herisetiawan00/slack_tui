@@ -10,7 +10,13 @@ use axum_server::{Handle, tls_rustls::RustlsConfig};
 use reqwest::{Client, Response, Url};
 use tokio::{runtime::Runtime, sync::mpsc};
 
-use crate::{common::Injectable, data::datasources::remote::RemoteDatasource};
+use crate::{
+    common::Injectable,
+    data::{
+        datasources::remote::RemoteDatasource,
+        entities::authorization::{self, AuthorizationEntity},
+    },
+};
 
 pub struct SlackRemoteDatasource {}
 
@@ -68,11 +74,6 @@ impl SlackRemoteDatasource {
                 .unwrap();
         });
 
-        println!(
-            "📡 Waiting for redirect on https://localhost:{}/callback...",
-            port
-        );
-
         let captured_code = rx.recv().await;
         shutdown_handle.graceful_shutdown(Some(Duration::from_secs(1)));
 
@@ -128,7 +129,7 @@ impl SlackRemoteDatasource {
         client_id: &String,
         client_secret: &String,
         code: &String,
-    ) -> Option<()> {
+    ) -> Option<AuthorizationEntity> {
         let client = Client::new();
         let mut form_data: HashMap<&str, &str> = HashMap::new();
         form_data.insert("client_id", client_id.as_str());
@@ -149,15 +150,7 @@ impl SlackRemoteDatasource {
             })
             .ok()?;
 
-        println!("{}", response);
-
-        // let cache_code = String::from("oauth.v2.access");
-        // store_cache(cache_code.to_string(), text.clone())?;
-
-        // let result: entities::slack::authorization::Authorization =
-        //     serde_json::from_str(&text.as_str())?;
-        //
-        // Ok(result)
-        None
+        let authorization = serde_json::from_str(&response.as_str()).ok()?;
+        return Some(authorization);
     }
 }

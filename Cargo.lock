@@ -2438,6 +2438,7 @@ dependencies = [
  "rcgen",
  "reqwest",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
 ]

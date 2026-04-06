@@ -119,51 +119,60 @@ fn render(context: &mut Context, frame: &mut Frame) {
 }
 
 fn keymap(context: &mut Context) -> Option<bool> {
-    let state = context.get_state::<LoginScreenState>()?;
-
     if let Some(key) = crossterm::event::read().unwrap().as_key_press_event() {
         let mut selected_item: Option<usize> = None;
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
+                let state = context.get_state::<LoginScreenState>()?;
                 if state.selected_item < state.total_item - 1 {
                     selected_item = Some(state.selected_item + 1)
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
+                let state = context.get_state::<LoginScreenState>()?;
                 if state.selected_item > 0 {
                     selected_item = Some(state.selected_item - 1)
                 }
             }
             KeyCode::Char('q') | KeyCode::Esc => return Some(true),
-            KeyCode::Enter => match state.selected_item {
-                0 => {
-                    let slack_remote_datasource = Registry::of(context)
-                        .resolve::<SlackRemoteDatasource>()
-                        .expect("SlackRemoteDatasource not registered in registry");
+            KeyCode::Enter => {
+                let state = context.get_state::<LoginScreenState>()?;
+                match state.selected_item {
+                    0 => {
+                        let slack_remote_datasource = Registry::of(context)
+                            .resolve::<SlackRemoteDatasource>()
+                            .expect("SlackRemoteDatasource not registered in registry");
 
-                    let code = slack_remote_datasource
-                        .oauth_authorize(&context.config.client_id, &context.config.redirect_url)?;
+                        let code = slack_remote_datasource.oauth_authorize(
+                            &context.config.client_id,
+                            &context.config.redirect_url,
+                        )?;
 
-                    slack_remote_datasource.exchange_code(
-                        &context.config.client_id,
-                        &context.config.client_secret,
-                        &code,
-                    );
+                        let auth = slack_remote_datasource.exchange_code(
+                            &context.config.client_id,
+                            &context.config.client_secret,
+                            &code,
+                        )?;
+
+                        context.set_auth(auth);
+                        return Some(false);
+                    }
+                    1 => {
+                        let configuration_local_datasource = Registry::of(context)
+                            .resolve::<ConfigurationLocalDatasource>()
+                            .expect("ConfigurationLocalDatasource not registered in registry");
+                        configuration_local_datasource.edit();
+                        context.refresh_config();
+                        return Some(false);
+                    }
+                    2 => return Some(true),
+                    _ => {}
                 }
-                1 => {
-                    let configuration_local_datasource = Registry::of(context)
-                        .resolve::<ConfigurationLocalDatasource>()
-                        .expect("ConfigurationLocalDatasource not registered in registry");
-                    configuration_local_datasource.edit();
-                    context.refresh_config();
-                    return Some(false);
-                }
-                2 => return Some(true),
-                _ => {}
-            },
+            }
             _ => {}
         }
 
+        let state = context.get_state::<LoginScreenState>()?;
         context.set_state(LoginScreenState {
             selected_item: selected_item?,
             ..state.clone()

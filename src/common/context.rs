@@ -1,9 +1,13 @@
 use crate::{
     common::{Config, State, injectable::Registry},
-    data::datasources::local::ConfigurationLocalDatasource,
+    data::{
+        datasources::local::ConfigurationLocalDatasource,
+        entities::authorization::AuthorizationEntity,
+    },
 };
 pub struct Context {
     state: Option<Box<dyn State>>,
+    authorization: Option<AuthorizationEntity>,
     pub registry: Registry,
     pub config: Config,
 }
@@ -12,6 +16,7 @@ impl Context {
     pub fn new(registry: Registry, config: Config) -> Self {
         Self {
             state: None,
+            authorization: None,
             registry,
             config,
         }
@@ -35,5 +40,15 @@ impl Context {
 
     pub fn clear_state(&mut self) {
         self.state = None;
+    }
+
+    pub fn get_auth(&self) -> AuthorizationEntity {
+        self.authorization
+            .clone()
+            .expect("User should be authorized")
+    }
+
+    pub fn set_auth(&mut self, authorization: AuthorizationEntity) {
+        self.authorization = Some(authorization);
     }
 }
