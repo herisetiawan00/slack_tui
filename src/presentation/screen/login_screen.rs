@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, env, process::Command};
+use std::any::Any;
 
 use crossterm::event::KeyCode;
 use ratatui::{
@@ -8,11 +8,9 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, List, ListState, Padding, Paragraph},
 };
-use reqwest::Url;
-use tiny_http::{Response, Server};
 
 use crate::{
-    common::{Config, Context, Registry, State},
+    common::{Context, Registry, State},
     data::datasources::{local::ConfigurationLocalDatasource, remote::SlackRemoteDatasource},
     presentation::screen::Screen,
 };
@@ -142,9 +140,15 @@ fn keymap(context: &mut Context) -> Option<bool> {
                     let slack_remote_datasource = Registry::of(context)
                         .resolve::<SlackRemoteDatasource>()
                         .expect("SlackRemoteDatasource not registered in registry");
+
                     let code = slack_remote_datasource
-                        .oauth_authorize(&context.config.client_id, &context.config.redirect_url);
-                    println!("{:?}", code?)
+                        .oauth_authorize(&context.config.client_id, &context.config.redirect_url)?;
+
+                    slack_remote_datasource.exchange_code(
+                        &context.config.client_id,
+                        &context.config.client_secret,
+                        &code,
+                    );
                 }
                 1 => {
                     let configuration_local_datasource = Registry::of(context)

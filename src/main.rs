@@ -11,6 +11,7 @@ use crate::{
     presentation::screen::login_screen,
 };
 
+// #[tokio::main]
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     ratatui::run(app)?;
@@ -45,7 +46,9 @@ fn setup_registry(registry: &mut Registry) {
 }
 
 fn setup_config(registry: &Registry) -> Config {
-    let datasource = registry.resolve::<ConfigurationLocalDatasource>().expect("ConfigurationLocalDatasource not registered in registry");
+    let datasource = registry
+        .resolve::<ConfigurationLocalDatasource>()
+        .expect("ConfigurationLocalDatasource not registered in registry");
 
     datasource.get()
 }

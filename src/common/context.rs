@@ -18,7 +18,10 @@ impl Context {
     }
 
     pub fn refresh_config(&mut self) -> Option<()> {
-        self.config = self.registry.resolve::<ConfigurationLocalDatasource>()?.get();
+        self.config = self
+            .registry
+            .resolve::<ConfigurationLocalDatasource>()?
+            .get();
         return Some(());
     }
 

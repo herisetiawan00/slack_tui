@@ -1,7 +1,14 @@
-use std::{any::Any, collections::HashMap};
+use std::{any::Any, collections::HashMap, net::SocketAddr, time::Duration};
 
-use reqwest::Url;
-use tiny_http::{Response, Server};
+use axum::{
+    Router,
+    extract::{Query, State},
+    response::Html,
+    routing::get,
+};
+use axum_server::{Handle, tls_rustls::RustlsConfig};
+use reqwest::{Client, Response, Url};
+use tokio::{runtime::Runtime, sync::mpsc};
 
 use crate::{common::Injectable, data::datasources::remote::RemoteDatasource};
 
@@ -20,6 +27,60 @@ impl RemoteDatasource for SlackRemoteDatasource {
 }
 
 impl SlackRemoteDatasource {
+    pub async fn wait_for_oauth_code(port: u16) -> Option<String> {
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
+        let config = RustlsConfig::from_pem(
+            cert.cert.pem().into(),
+            cert.signing_key.serialize_pem().into(),
+        )
+        .await
+        .ok()?;
+
+        let (tx, mut rx) = mpsc::channel::<String>(1);
+        let handle = Handle::new();
+        let shutdown_handle = handle.clone();
+
+        let app = Router::new()
+            .route(
+                "/",
+                get(
+                    move |Query(params): Query<HashMap<String, String>>,
+                          State(tx): State<mpsc::Sender<String>>| {
+                        async move {
+                            if let Some(code) = params.get("code") {
+                                let _ = tx.send(code.clone()).await;
+                                return Html("<h1>Success!</h1><p>Return to your app.</p>");
+                            }
+                            Html("<h1>Error</h1><p>No code found.</p>")
+                        }
+                    },
+                ),
+            )
+            .with_state(tx);
+
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+
+        let server_handle = tokio::spawn(async move {
+            axum_server::bind_rustls(addr, config)
+                .handle(handle)
+                .serve(app.into_make_service())
+                .await
+                .unwrap();
+        });
+
+        println!(
+            "📡 Waiting for redirect on https://localhost:{}/callback...",
+            port
+        );
+
+        let captured_code = rx.recv().await;
+        shutdown_handle.graceful_shutdown(Some(Duration::from_secs(1)));
+
+        let _ = server_handle.await;
+
+        captured_code
+    }
+
     pub fn oauth_authorize(&self, client_id: &String, redirect_uri: &String) -> Option<String> {
         let path = "/oauth/v2/authorize";
         let scope: Vec<&str> = vec![];
@@ -55,25 +116,48 @@ impl SlackRemoteDatasource {
 
         opener::open(auth_url.to_string()).ok()?;
 
-        let server = Server::http(redirect_uri.split("://").last().unwrap()).unwrap();
+        let rt = Runtime::new().unwrap();
 
-        for request in server.incoming_requests() {
-            let base_url = Url::parse(redirect_uri.as_str()).unwrap();
-            let full_url = base_url.join(request.url()).unwrap();
+        let code = rt.block_on(async { Self::wait_for_oauth_code(7777).await });
 
-            for (key, value) in full_url.query_pairs() {
-                if key == "code" {
-                    request.respond(Response::from_string("Success").with_status_code(200)).ok()?;
-                    return Some(value.to_string());
-                }
-            }
+        return code;
+    }
 
-            request
-                .respond(Response::from_string("No code on query params").with_status_code(400))
-                .ok()?;
-        }
+    pub fn exchange_code(
+        &self,
+        client_id: &String,
+        client_secret: &String,
+        code: &String,
+    ) -> Option<()> {
+        let client = Client::new();
+        let mut form_data: HashMap<&str, &str> = HashMap::new();
+        form_data.insert("client_id", client_id.as_str());
+        form_data.insert("client_secret", client_secret.as_str());
+        form_data.insert("code", code.as_str());
 
+        let rt = Runtime::new().unwrap();
+
+        let response = rt
+            .block_on(async {
+                let response = client
+                    .post("https://slack.com/api/oauth.v2.access")
+                    .form(&form_data)
+                    .send()
+                    .await
+                    .unwrap();
+                response.text().await
+            })
+            .ok()?;
+
+        println!("{}", response);
+
+        // let cache_code = String::from("oauth.v2.access");
+        // store_cache(cache_code.to_string(), text.clone())?;
+
+        // let result: entities::slack::authorization::Authorization =
+        //     serde_json::from_str(&text.as_str())?;
+        //
+        // Ok(result)
         None
     }
 }
-
